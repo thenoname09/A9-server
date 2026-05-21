@@ -3,7 +3,7 @@ dns.setServers(["8.8.8.8", "8.8.4.4"]);
 const express = require('express')
 const dotenv =require("dotenv").config()
 var cors = require('cors')
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = process.env.MONGODB_URL;
 const app = express()
 app.use(cors())
@@ -29,21 +29,40 @@ async function run() {
 
 const db = client.db("DriveFleet")
 const carsDataInfo = db.collection("cars_info")
+const bookingCollection = db.collection("bookings")
+
+
+
 
 app.get("/cars_info", async (req , res)=>{
-  const result = await carsDataInfo.find().toArray();
+  const result = await carsDataInfo.find().sort({ availability_status: 1 }).toArray();
   res.json(result)
-  console.log(result)
+ 
+})
+
+app.get("/cars_info/:id", async (req,res) =>{
+  const {id} = req.params
+  
+  const result = await carsDataInfo.findOne({ _id: new ObjectId(id)})
+  res.json(result)
+ console.log(result)
 })
 
 
-app.post("/cars_info", async (req,res) =>{
-  const carsData = req.body
-  console.log(carsData)
-  const result = await carsDataInfo.insertOne(carsData)
+app.get("/available_cars", async (req , res)=>{
+  const result = await carsDataInfo.find({ availability_status : 'Available'}).limit(6).toArray();
   res.json(result)
-
+  
 })
+
+// bookings api
+app.post("/bookings", async (req,res)=>{
+    const bookingData= req.body
+    const result = await bookingCollection.insertOne(bookingData)
+     res.json(result)
+})
+
+
 
 
 
