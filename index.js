@@ -44,9 +44,31 @@ app.get("/cars_info/:id", async (req,res) =>{
   const {id} = req.params
   
   const result = await carsDataInfo.findOne({ _id: new ObjectId(id)})
-  res.json(result)
- console.log(result)
+
+  const booking_count = await bookingCollection.countDocuments({
+  carId: id,
+});
+  res.json({
+  ...result,
+  booking_count,
 })
+ 
+})
+
+
+app.post("/cars_info", async (req, res) => {
+  const carListingData = req.body;
+
+  const result = await carsDataInfo.insertOne(carListingData);
+
+  res.json(result);
+ 
+});
+
+
+
+
+
 
 
 app.get("/available_cars", async (req , res)=>{
@@ -62,6 +84,26 @@ app.post("/bookings", async (req,res)=>{
      res.json(result)
 })
 
+app.get("/bookings/:userId", async (req , res)=>{
+  const {userId} = req.params
+  const result = await bookingCollection.find({userId:userId}).toArray();
+  res.json(result)
+  
+})
+
+// my_car_listing api
+app.get("/my_car_listing/:userId", async (req , res)=>{
+  const {userId} = req.params
+  const result = await carsDataInfo.find({userId:userId}).toArray();
+  res.json(result)
+  //  console.log(result)
+})
+app.delete("/my_car_listing/:id", async (req , res)=>{
+  const {id } = req.params
+  const result = await carsDataInfo.deleteOne({_id: new ObjectId(id)})
+  res.json(result)
+  //  console.log(result)
+})
 
 
 
