@@ -21,50 +21,71 @@ const client = new MongoClient(uri, {
   },
 });
 
-     const JWKS = createRemoteJWKSet(
-      new URL('http://localhost:3000/api/auth/jwks')
+const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`));
 
-     )
+const verifyToken = async (req, res, next) => {
+  const authHeader = req?.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ message: "unauthorized" });
+  }
 
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ message: "unauthorized" });
+  }
 
-      const verifyToken = async(req,res,next)=>{
-      const authHeader = req?.headers.authorization
-        if(!authHeader){
-          return res.status(401).json({message: "unauthorized"  })
-        }
-
-      const token = authHeader.split(" ")[1]
-      if(!token){
-          return res.status(401).json({message: "unauthorized"  })
-        }
-
-        try {
-           const { payload } = await jwtVerify(token, JWKS,)
-           next()
-           console.log(payload)
-        } catch (error) {
-          return res.status(401).json({message: "unauthorized"  })
-        }
- 
-     };
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    next();
+    console.log(payload);
+  } catch (error) {
+    return res.status(401).json({ message: "unauthorized" });
+  }
+};
 
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("DriveFleet");
     const carsDataInfo = db.collection("cars_info");
     const bookingCollection = db.collection("bookings");
 
-
-
-
     app.get("/cars_info", async (req, res) => {
-      const result = await carsDataInfo
-        .find()
-        .sort({ availability_status: 1 })
-        .toArray();
+        const search = (req.query.search || "").trim();
+      let cursor;
+      if (search) {
+        cursor = carsDataInfo.find({
+          $or: [
+            {
+              name: {
+                $regex: search,
+                $options: "i",
+              },
+            },
+
+            {
+              car_type: {
+                $regex: search,
+                $options: "i",
+              },
+            },
+
+            {
+              location: {
+                $regex: search,
+                $options: "i",
+              },
+            },
+          ],
+        });
+      } else {
+        cursor = carsDataInfo.find();
+      }
+
+      const result = await cursor.sort({ availability_status: 1 }).toArray();
+
       res.json(result);
     });
 
@@ -99,27 +120,27 @@ async function run() {
     });
 
     // bookings api
-    app.post("/bookings",verifyToken, async (req, res) => {
+    app.post("/bookings", verifyToken, async (req, res) => {
       const bookingData = req.body;
       const result = await bookingCollection.insertOne(bookingData);
       res.json(result);
     });
 
-    app.get("/bookings/:userId",verifyToken, async (req, res) => {
+    app.get("/bookings/:userId", verifyToken, async (req, res) => {
       const { userId } = req.params;
       const result = await bookingCollection.find({ userId: userId }).toArray();
       res.json(result);
     });
 
     // my_car_listing api
-    app.get("/my_car_listing/:userId",verifyToken, async (req, res) => {
+    app.get("/my_car_listing/:userId", verifyToken, async (req, res) => {
       const { userId } = req.params;
       const result = await carsDataInfo.find({ userId: userId }).toArray();
       res.json(result);
       //  console.log(result)
     });
-    
-    app.delete("/my_car_listing/:id",verifyToken, async (req, res) => {
+
+    app.delete("/my_car_listing/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       const result = await carsDataInfo.deleteOne({ _id: new ObjectId(id) });
       res.json(result);
@@ -130,16 +151,13 @@ async function run() {
       const { id } = req.params;
       const updatedCar = req.body;
       const result = await carsDataInfo.updateOne(
-        { _id: new ObjectId(id)},
-        {$set:updatedCar}
-    
-        
-         );
+        { _id: new ObjectId(id) },
+        { $set: updatedCar },
+      );
 
       res.json(result);
       //  console.log(result)
     });
-
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
